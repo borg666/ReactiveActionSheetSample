@@ -1,0 +1,76 @@
+//
+//  ViewController.swift
+//  ReactiveAlertAndActionSheet
+//
+//  Created by Adam Borek on 23.01.2017.
+//  Copyright © 2017 Adam Borek. All rights reserved.
+//
+
+import UIKit
+import RxSwift
+import RxCocoa
+import RxSwiftExt
+import NSObject_Rx
+
+final class AvatarViewController: UIViewController {
+    private enum Strings {
+        static let errorTitle = "Error"
+    }
+    let disposeBag: DisposeBag = DisposeBag()
+    @IBOutlet weak var chooseImageButton: UIButton!
+    @IBOutlet weak var imageView: UIImageView!
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init with coder is not available")
+    }
+    
+    let viewModel: AvatarViewModel
+    
+    init() {
+        let imagePickerInteractor = ImagePickerInteractor()
+        let imageSources: [ImageSource] = [LastImageTakenImageSource(), LibraryImageSource(imagePickerInteractor: imagePickerInteractor)]
+        let imageReceiver = ImageSourceChooser(sources: imageSources)
+        viewModel = AvatarViewModel(imageReceiver: imageReceiver)
+        
+        super.init(nibName: AvatarViewController.nibName, bundle: nil)
+        imageReceiver.presenter = self
+        imagePickerInteractor.presenter = self
+    }
+    
+    override func viewDidLoad() {
+        chooseImageButton.rx.tap.bind(to: viewModel.chooseImageButtonPressed)
+            .disposed(by: disposeBag)
+
+        
+        viewModel.image.drive(onNext: { [weak self] image in
+            self?.imageView.image = image
+        }).disposed(by: disposeBag)
+        
+        viewModel.errorMessage.drive(onNext: { [weak self] message in
+            self?.showError(with: message)
+        }).disposed(by: disposeBag)
+    }
+    
+    private func showError(with message: String) {
+        let alertController = UIAlertController(title: Strings.errorTitle, message: message, preferredStyle: .alert)
+        alertController.addAction(UIAlertAction(title: "OK", style: .cancel) { [weak alertController] _ in
+            alertController?.dismiss(animated: true, completion: nil)
+        })
+        present(alertController)
+    }
+}
+
+fileprivate func mapErrorMessages(error: Error) -> String? {
+    switch error {
+    case GalleryReadingErrors.notAuthorized:
+        return ""
+    case GalleryReadingErrors.imageNotFound:
+        return ""
+    default:
+        return nil
+    }
+}
+
+
+extension AvatarViewController: HavingNib {
+    static let nibName = "ViewController"
+}
